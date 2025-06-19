@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk11'
+        maven 'maven3'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', changelog: false, poll: false, url: 'https://github.com/Karthikk29/Shopping_App_CI-CD.git'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                bat 'mvn clean compile'
+            }
+        }
+
+        stage('Sonarqube Analysis') {
+            steps {
+                bat '''
+                "%SCANNER_HOME%\\bin\\sonar-scanner" ^
+                -Dsonar.url=http://localhost:9000 ^
+                -Dsonar.login=SonarQube_Token ^
+                -Dsonar.projectName=shopping-cart ^
+                -Dsonar.java.binaries=. ^
+                -Dsonar.projectKey=shopping-cart
+                '''
+            }
+        }
+stage('Build Application') {
+    steps {
+        bat 'mvn clean install -DskipTests'
+    }
+}
+
+stage('Build & Push') {
+    steps {
+        script {
+            withDockerRegistry(credentialsId: 'Your Cred') {
+                bat 'docker build -t shopping:latest -f docker/Dockerfile .'
+                bat 'docker tag shopping:latest karthikkotharkar/shopping:latest'
+                bat 'docker push karthikkotharkar/shopping:latest'
+            }
+        }
+    }
+}
+stage('Trigger CD Pipeline'){
+    steps{
+        build job: "cd_pipeline", wait: true
+    }
+}
+}
+}
